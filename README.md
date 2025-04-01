@@ -27,6 +27,29 @@ Foodgram is a recipe management service where users can share recipes, follow ot
 - Follow other users
 - Filter recipes by tags
 
+## Docker Images
+The project's Docker images are available at:
+- Backend: `https://hub.docker.com/r/tirabock/foodgram-backend`
+- Frontend: `https://hub.docker.com/r/tirabock/foodgram-frontend`
+
+You can pull these images directly instead of building them locally:
+```bash
+docker pull tirabock/foodgram-backend
+docker pull tirabock/foodgram-frontend
+```
+
+To use these images in your docker-compose.yml, replace the build contexts with the image URLs:
+```yaml
+services:
+  backend:
+    image: <your-backend-image-url>
+    ...
+
+  frontend:
+    image: <your-frontend-image-url>
+    ...
+```
+
 ## Environment Variables
 The project uses environment variables for configuration. Sample configuration files are provided in `.env.sample`:
 
