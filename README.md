@@ -87,6 +87,9 @@ cp infra/.env.sample infra/.env
 
 ### Development Setup
 1. Clone the repository
+   ```bash
+   git clone https://github.com/savlagood/foodgram-st.git
+   ```
 2. Create environment files as described above
 3. Build and run the containers:
    ```bash
@@ -107,8 +110,13 @@ cp infra/.env.sample infra/.env
    ```
 
 ### API Documentation
-API documentation is available at `/api/docs/` after starting the project.
+API documentation is available at [`/api/docs/`](http://127.0.0.1/api/docs/) after starting the project.
 You can find the OpenAPI schema in `docs/openapi-schema.yml`.
 
 ### Testing
 The project includes a Postman collection for API testing located in `postman_collection/foodgram.postman_collection.json`.
+
+## About Author
+- Савищенко Владислав Романович
+- НИУ МЭИ - ИВТИ - Аэ-21-22
+- [github](https://github.com/savlagood)
