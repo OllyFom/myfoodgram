@@ -25,7 +25,6 @@ INSTALLED_APPS = [
     "rest_framework.authtoken",
     "djoser",
     "recipes.apps.RecipesConfig",
-    "users.apps.UsersConfig",
     "api.apps.ApiConfig",
 ]
 
@@ -147,4 +146,4 @@ DJOSER = {
     },
 }
 
-AUTH_USER_MODEL = "users.User"
+AUTH_USER_MODEL = "recipes.User"

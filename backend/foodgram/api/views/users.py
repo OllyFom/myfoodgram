@@ -11,7 +11,7 @@ from api.serializers.users import (
     UserAvatarSerializer,
     UserWithRecipesSerializer,
 )
-from users.models import User, Subscription
+from recipes.models import User, Subscription
 
 
 class UserViewSet(DjoserUserViewSet):
