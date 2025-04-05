@@ -2,6 +2,7 @@ from djoser.serializers import UserSerializer
 from rest_framework import serializers
 
 from users.models import User
+from recipes.models import Recipe
 from api.serializers.fields import Base64ImageField
 
 
@@ -11,31 +12,25 @@ class UserProfileSerializer(UserSerializer):
     is_subscribed = serializers.SerializerMethodField()
     avatar = serializers.SerializerMethodField()
 
-    class Meta:
+    class Meta(UserSerializer.Meta):
         model = User
-        fields = (
-            "email",
-            "id",
-            "username",
-            "first_name",
-            "last_name",
+        fields = tuple(UserSerializer.Meta.fields) + (
             "is_subscribed",
             "avatar",
         )
 
-    def get_is_subscribed(self, obj):
+    def get_is_subscribed(self, user_profile):
         request = self.context.get("request")
-        if (
-            request is None
-            or request.user.is_anonymous
-            or not request.user.is_authenticated
-        ):
-            return False
-        return obj.followers.filter(from_user=request.user).exists()
+        return (
+            request is not None
+            and not request.user.is_anonymous
+            and request.user.is_authenticated
+            and user_profile.followers.filter(user=request.user).exists()
+        )
 
-    def get_avatar(self, obj):
-        if obj.avatar:
-            return obj.avatar.url
+    def get_avatar(self, user_profile):
+        if user_profile.avatar:
+            return user_profile.avatar.url
         return None
 
 
@@ -56,3 +51,35 @@ class UserAvatarSerializer(serializers.ModelSerializer):
         instance.avatar = avatar
         instance.save()
         return instance
+
+
+class RecipeShortSerializer(serializers.ModelSerializer):
+    """Serializer for short recipe details."""
+
+    class Meta:
+        model = Recipe
+        read_only_fields = ("id", "name", "image", "cooking_time")
+        fields = read_only_fields
+
+
+class UserWithRecipesSerializer(UserProfileSerializer):
+    """Сериализатор для пользователя с его рецептами."""
+
+    recipes = serializers.SerializerMethodField()
+    recipes_count = serializers.IntegerField(
+        source="recipes.count", read_only=True
+    )
+
+    class Meta(UserProfileSerializer.Meta):
+        fields = UserProfileSerializer.Meta.fields + (
+            "recipes",
+            "recipes_count",
+        )
+
+    def get_recipes(self, user_obj):
+        request = self.context.get("request")
+        limit = request.query_params.get("recipes_limit") if request else None
+        recipes = user_obj.recipes.all()
+        if limit:
+            recipes = recipes[: int(limit)]
+        return RecipeShortSerializer(recipes, many=True).data

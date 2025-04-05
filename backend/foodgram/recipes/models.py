@@ -12,77 +12,82 @@ class Recipe(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name="recipes",
-        verbose_name="author",
+        verbose_name="автор",
     )
-    name = models.CharField("name", max_length=256)
-    text = models.TextField(verbose_name="description")
+    name = models.CharField("название", max_length=256)
+    text = models.TextField(verbose_name="описание")
     ingredients = models.ManyToManyField(
         "ingredient",
-        through="IngredientRecipe",
+        through="RecipeIngredient",
         related_name="recipes",
-        verbose_name="ingredients",
+        verbose_name="ингредиенты",
     )
     cooking_time = models.PositiveIntegerField(
-        "cooking time (minutes)",
+        "время приготовления (в минутах)",
         validators=[MinValueValidator(1)],
     )
-    image = models.ImageField("image", upload_to="recipes/")
+    image = models.ImageField("изображение", upload_to="recipes/")
 
     class Meta:
-        ordering = ["name"]
-        verbose_name = "recipe"
-        verbose_name_plural = "recipes"
+        ordering = ("name",)
+        verbose_name = "рецепт"
+        verbose_name_plural = "рецепты"
 
     def __str__(self):
-        return str(self.name)
+        return self.name
 
 
 class Ingredient(models.Model):
     """Ingredient model"""
 
     name = models.CharField(
-        "name",
+        "название",
         max_length=256,
-        unique=True,
     )
     measurement_unit = models.CharField(
-        "measurement unit",
+        "единица измерения",
         max_length=256,
     )
 
     class Meta:
-        ordering = ["name"]
-        verbose_name = "ingredient"
-        verbose_name_plural = "ingredients"
+        ordering = ("name",)
+        verbose_name = "ингредиент"
+        verbose_name_plural = "ингредиенты"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "measurement_unit"],
+                name="unique_ingredient",
+            )
+        ]
 
     def __str__(self):
         return f"{self.name} - {self.measurement_unit}"
 
 
-class IngredientRecipe(models.Model):
+class RecipeIngredient(models.Model):
     """Many to many relationship between Recipe and Ingredient"""
 
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
         related_name="recipe_ingredients",
-        verbose_name="recipe",
+        verbose_name="рецепт",
     )
     ingredient = models.ForeignKey(
         Ingredient,
         on_delete=models.CASCADE,
         related_name="recipe_ingredients",
-        verbose_name="ingredient",
+        verbose_name="ингредиент",
     )
     amount = models.PositiveIntegerField(
-        "amount",
+        "количество",
         validators=[MinValueValidator(1)],
     )
 
     class Meta:
-        ordering = ["recipe", "ingredient"]
-        verbose_name = "ingredient recipe"
-        verbose_name_plural = "ingredient recipes"
+        ordering = ("recipe", "ingredient")
+        verbose_name = "ингредиент в рецепте"
+        verbose_name_plural = "ингредиенты в рецепте"
 
     def __str__(self):
         return (
@@ -97,46 +102,40 @@ class UserRecipeRelation(models.Model):
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
-        verbose_name="user",
-        related_name="%(class)s_relations",
+        verbose_name="пользователь",
+        related_name="%(class)ss",
     )
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
-        verbose_name="recipe",
-        related_name="%(class)s_relations",
+        verbose_name="рецепт",
+        related_name="%(class)ss",
     )
 
     class Meta:
         abstract = True
-        ordering = ["user", "recipe"]
+        ordering = ("user", "recipe")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "recipe"], name="unique_%(class)s"
+            )
+        ]
 
     def __str__(self):
         return f"{self.user} - {self.recipe}"
 
 
-class FavoriteRecipes(UserRecipeRelation):
+class FavoriteRecipe(UserRecipeRelation):
     """Model for favorite recipes"""
 
-    class Meta:
-        verbose_name = "favorite recipe"
-        verbose_name_plural = "favorite recipes"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "recipe"], name="unique_user_recipe_favorite"
-            )
-        ]
+    class Meta(UserRecipeRelation.Meta):
+        verbose_name = "избранный рецепт"
+        verbose_name_plural = "избранные рецепты"
 
 
 class ShoppingCart(UserRecipeRelation):
     """Model for shopping cart items"""
 
-    class Meta:
-        verbose_name = "shopping cart item"
-        verbose_name_plural = "shopping cart items"
-        constraints = [
-            models.UniqueConstraint(
-                fields=["user", "recipe"],
-                name="unique_user_recipe_shopping_cart",
-            )
-        ]
+    class Meta(UserRecipeRelation.Meta):
+        verbose_name = "рецепт в списке покупок"
+        verbose_name_plural = "рецепты в списке покупок"
