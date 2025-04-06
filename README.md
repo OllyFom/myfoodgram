@@ -73,7 +73,7 @@ DB_PORT=5432
 ```
 
 To set up your environment:
-1. Copy the sample file:
+1. In thr project directory, copy the sample file:
 ```bash
 cp infra/.env.sample infra/.env
 ```
@@ -93,7 +93,7 @@ cp infra/.env.sample infra/.env
 2. Create environment files as described above
 3. Build and run the containers:
    ```bash
-   cd infra
+   cd foodgram-st/infra
    docker-compose up -d --build
    ```
 4. Apply migrations:
@@ -102,7 +102,7 @@ cp infra/.env.sample infra/.env
    ```
 5. Load initial data:
    ```bash
-   docker-compose exec backend python manage.py load_ingredients
+   docker-compose exec backend python manage.py load_ingredients data/ingredients.json
    ```
 6. Create superuser:
    ```bash

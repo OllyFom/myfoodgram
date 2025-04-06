@@ -1,6 +1,5 @@
 from django.contrib import admin
 from django.utils.safestring import mark_safe
-from django.db.models import Min, Max
 from django.contrib.auth.admin import UserAdmin
 
 from .models import (
@@ -14,59 +13,64 @@ from .models import (
 )
 
 
-class HasRecipesFilter(admin.SimpleListFilter):
+class RecipesCountMixin:
+    """Mixin providing recipes count functionality"""
+
+    @admin.display(description="рецепты")
+    def get_recipes_count(self, obj):
+        return obj.recipes.count()
+
+
+class BaseHasFilter(admin.SimpleListFilter):
+    lookups_choices = (
+        ("yes", "Есть"),
+        ("no", "Нет"),
+    )
+
+    def lookups(self, request, model_admin):
+        return self.lookups_choices
+
+    def queryset(self, request, queryset):
+        if self.value() == "yes":
+            return queryset.filter(
+                **{f"{self.field}__isnull": False}
+            ).distinct()
+        if self.value() == "no":
+            return queryset.filter(**{f"{self.field}__isnull": True})
+
+
+class HasRecipesFilter(BaseHasFilter):
     title = "наличие рецептов"
     parameter_name = "has_recipes"
-
-    def lookups(self, request, model_admin):
-        return (
-            ("yes", "Есть рецепты"),
-            ("no", "Нет рецептов"),
-        )
-
-    def queryset(self, request, queryset):
-        if self.value() == "yes":
-            return queryset.filter(recipes__isnull=False).distinct()
-        if self.value() == "no":
-            return queryset.filter(recipes__isnull=True)
+    field = "recipes"
+    lookups_choices = (
+        ("yes", "Есть рецепты"),
+        ("no", "Нет рецептов"),
+    )
 
 
-class HasFollowersFilter(admin.SimpleListFilter):
+class HasFollowersFilter(BaseHasFilter):
     title = "наличие подписчиков"
     parameter_name = "has_followers"
-
-    def lookups(self, request, model_admin):
-        return (
-            ("yes", "Есть подписчики"),
-            ("no", "Нет подписчиков"),
-        )
-
-    def queryset(self, request, queryset):
-        if self.value() == "yes":
-            return queryset.filter(authors__isnull=False).distinct()
-        if self.value() == "no":
-            return queryset.filter(authors__isnull=True)
+    field = "authors"
+    lookups_choices = (
+        ("yes", "Есть подписчики"),
+        ("no", "Нет подписчиков"),
+    )
 
 
-class HasSubscriptionsFilter(admin.SimpleListFilter):
+class HasSubscriptionsFilter(BaseHasFilter):
     title = "наличие подписок"
     parameter_name = "has_subscriptions"
-
-    def lookups(self, request, model_admin):
-        return (
-            ("yes", "Есть подписки"),
-            ("no", "Нет подписок"),
-        )
-
-    def queryset(self, request, queryset):
-        if self.value() == "yes":
-            return queryset.filter(followers__isnull=False).distinct()
-        if self.value() == "no":
-            return queryset.filter(followers__isnull=True)
+    field = "followers"
+    lookups_choices = (
+        ("yes", "Есть подписки"),
+        ("no", "Нет подписок"),
+    )
 
 
 @admin.register(User)
-class SiteUserAdmin(UserAdmin):
+class SiteUserAdmin(UserAdmin, RecipesCountMixin):
     """Custom user admin class"""
 
     list_display = (
@@ -137,10 +141,6 @@ class SiteUserAdmin(UserAdmin):
             return f'<img src="{obj.avatar.url}" width="50" height="50" />'
         return ""
 
-    @admin.display(description="Рецепты")
-    def get_recipes_count(self, obj):
-        return obj.recipes.count()
-
     @admin.display(description="подписчики")
     def get_number_of_followers(self, user_obj):
         return user_obj.authors.count()
@@ -164,47 +164,46 @@ class CookingTimeFilter(admin.SimpleListFilter):
 
     title = "время приготовления"
     parameter_name = "cooking_time"
+    _thresholds = None
 
     def lookups(self, request, model_admin):
-        stats = Recipe.objects.aggregate(
-            min_time=Min("cooking_time"), max_time=Max("cooking_time")
-        )
-
-        if not stats["min_time"] or not stats["max_time"]:
+        cooking_times = [r.cooking_time for r in Recipe.objects.all()]
+        if not cooking_times:
             return []
 
-        time_range = stats["max_time"] - stats["min_time"]
-        threshold1 = stats["min_time"] + time_range // 3
-        threshold2 = stats["min_time"] + (2 * time_range) // 3
+        min_time = min(cooking_times)
+        max_time = max(cooking_times)
 
-        quick_count = Recipe.objects.filter(
-            cooking_time__lte=threshold1
-        ).count()
-        medium_count = Recipe.objects.filter(
-            cooking_time__gt=threshold1, cooking_time__lte=threshold2
-        ).count()
-        long_count = Recipe.objects.filter(cooking_time__gt=threshold2).count()
+        if max_time - min_time <= 5:
+            return []
+
+        time_range = max_time - min_time
+        self._thresholds = (
+            min_time + time_range // 3,
+            min_time + (2 * time_range) // 3,
+        )
+        threshold1, threshold2 = self._thresholds
+
+        quick = medium = long = 0
+        for t in cooking_times:
+            if t < threshold1:
+                quick += 1
+            elif t < threshold2:
+                medium += 1
+            else:
+                long += 1
 
         return [
-            ("quick", f"быстрее {threshold1} мин ({quick_count})"),
-            ("medium", f"быстрее {threshold2} мин ({medium_count})"),
-            ("long", f"дольше {threshold2} мин ({long_count})"),
+            ("quick", f"до {threshold1} мин ({quick})"),
+            ("medium", f"от {threshold1} до {threshold2} мин ({medium})"),
+            ("long", f"от {threshold2} мин и больше ({long})"),
         ]
 
     def queryset(self, request, queryset):
-        if not self.value():
+        if not self.value() or not self._thresholds:
             return queryset
 
-        stats = Recipe.objects.aggregate(
-            min_time=Min("cooking_time"), max_time=Max("cooking_time")
-        )
-
-        if not stats["min_time"] or not stats["max_time"]:
-            return queryset
-
-        time_range = stats["max_time"] - stats["min_time"]
-        threshold1 = stats["min_time"] + time_range // 3
-        threshold2 = stats["min_time"] + (2 * time_range) // 3
+        threshold1, threshold2 = self._thresholds
 
         if self.value() == "quick":
             return queryset.filter(cooking_time__lte=threshold1)
@@ -241,8 +240,7 @@ class RecipeAdmin(admin.ModelAdmin):
         "author__first_name",
         "author__last_name",
     )
-    # list_filter = ("name", "author")
-    list_filter = (CookingTimeFilter,)
+    list_filter = (CookingTimeFilter, "author")
     inlines = (RecipeIngredientInline,)
 
     @admin.display(description="в избранном")
@@ -252,14 +250,14 @@ class RecipeAdmin(admin.ModelAdmin):
     @admin.display(description="ингредиенты")
     @mark_safe
     def get_ingredients(self, obj):
-        ingredients = obj.recipe_ingredients.all()
-        ingredients_list = [
-            f"{item.ingredient.name} - "
-            f"{item.amount} "
-            f"{item.ingredient.measurement_unit}"
-            for item in ingredients
-        ]
-        return "<br>".join(ingredients_list)
+        return "<br>".join(
+            [
+                f"{item.ingredient.name} - "
+                f"{item.amount} "
+                f"{item.ingredient.measurement_unit}"
+                for item in obj.recipe_ingredients.all()
+            ]
+        )
 
     @admin.display(description="изображение")
     @mark_safe
@@ -270,16 +268,12 @@ class RecipeAdmin(admin.ModelAdmin):
 
 
 @admin.register(Ingredient)
-class IngredientAdmin(admin.ModelAdmin):
+class IngredientAdmin(admin.ModelAdmin, RecipesCountMixin):
     """Ingredient admin model"""
 
     list_display = ("name", "measurement_unit", "get_recipes_count")
     search_fields = ("name", "measurement_unit")
     list_filter = ("measurement_unit",)
-
-    @admin.display(description="рецептов")
-    def get_recipes_count(self, obj):
-        return obj.recipes.count()
 
 
 @admin.register(FavoriteRecipe, ShoppingCart)

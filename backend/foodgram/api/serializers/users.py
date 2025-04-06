@@ -13,10 +13,7 @@ class UserProfileSerializer(UserSerializer):
 
     class Meta(UserSerializer.Meta):
         model = User
-        fields = tuple(UserSerializer.Meta.fields) + (
-            "is_subscribed",
-            "avatar",
-        )
+        fields = (*UserSerializer.Meta.fields, "is_subscribed", "avatar")
 
     def get_is_subscribed(self, user_profile):
         request = self.context.get("request")
@@ -70,15 +67,20 @@ class UserWithRecipesSerializer(UserProfileSerializer):
     )
 
     class Meta(UserProfileSerializer.Meta):
-        fields = UserProfileSerializer.Meta.fields + (
+        fields = (
+            *UserProfileSerializer.Meta.fields,
             "recipes",
             "recipes_count",
         )
 
     def get_recipes(self, user_obj):
-        request = self.context.get("request")
-        limit = request.query_params.get("recipes_limit") if request else None
-        recipes = user_obj.recipes.all()
-        if limit:
-            recipes = recipes[: int(limit)]
-        return RecipeShortSerializer(recipes, many=True).data
+        return RecipeShortSerializer(
+            user_obj.recipes.all()[
+                : int(
+                    self.context.get("request").GET.get(
+                        "recipes_limit", 10**10
+                    )
+                )
+            ],
+            many=True,
+        ).data

@@ -14,7 +14,7 @@ class User(AbstractUser):
         "Аватар", upload_to="avatars/", blank=True, null=True
     )
     username = models.CharField(
-        "Имя пользователя",
+        "Никнейм",
         max_length=150,
         unique=True,
         validators=[

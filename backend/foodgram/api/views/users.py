@@ -4,6 +4,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.decorators import action
 from rest_framework import status
 from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 
 from api.pagination import SitePagination
 from api.serializers.users import (
@@ -26,8 +27,7 @@ class UserViewSet(DjoserUserViewSet):
         detail=False, methods=["get"], permission_classes=[IsAuthenticated]
     )
     def me(self, request):
-        serializer = self.get_serializer(request.user)
-        return Response(serializer.data)
+        return super().me(request)
 
     @action(
         methods=["put", "delete"],
@@ -81,8 +81,6 @@ class UserViewSet(DjoserUserViewSet):
         serializer_class=UserWithRecipesSerializer,
     )
     def subscribe(self, request, id=None):
-        from rest_framework.exceptions import ValidationError
-
         author = get_object_or_404(User, id=id)
         current_user = request.user
 
@@ -102,16 +100,7 @@ class UserViewSet(DjoserUserViewSet):
             serializer = self.get_serializer(author)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-        # на ревью пометили как надо исправить
-        # Примените get_object_or_404(...).delete()
-        # но в этом случае мы должны возвращать не 404, а 400
-        # потому что если вернуть 404, то будет падать тест
-        subscription = Subscription.objects.filter(
-            user=current_user, author=author
-        ).first()
-
-        if not subscription:
-            raise ValidationError("You are not subscribed to this user")
-
-        subscription.delete()
+        get_object_or_404(
+            Subscription, user=current_user, author=author
+        ).delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
